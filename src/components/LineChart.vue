@@ -102,17 +102,56 @@ function fillGaps(pieces: { min: number, max: number, color: string }[], howToFi
 
   return result;
 }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function* zip(...arrays: any[]) {
+  const maxLength = arrays.reduce((max, curIterable) => curIterable.length > max ? curIterable.length : max, 0);
+  for (let i = 0; i < maxLength; i++) {
+    yield arrays.map(array => array[i]);
+  }
+}
 
 const option = computed(() => {
-  // const pieces = props.pieces?.map((p) => {
-  //   return {
-  //     min: p.start,
-  //     max: p.end,
-  //     color: 'red'
-  //   }
-  // }) || [];
+  let seriesAndPieces;
+  if (Array.isArray(props.series)) {
+    seriesAndPieces = zip(serieses.value, props.pieces).map(([s, p]) => [s, [p]]).toArray();
+  }
+  else {
+    seriesAndPieces = [[props.series, props.pieces]];
+  }
 
-  return {
+  const seriesEntries = seriesAndPieces.filter(([serie, pieces]) => serie !== undefined && pieces !== undefined).map(([s, p]) => {
+    return {
+      name: s.name,
+      // lineStyle: {
+      //   color: '#ff0000',
+      //   // width: 5
+      // },
+      areaStyle: {
+        color: 'rgba(0,0,0,0)'
+      }, // needed!
+
+      type: 'line',
+      symbol: 'none',
+      sampling: 'lttb',
+      data: structuredClone(s.points).toSorted((a: { time: Timestamp; }, b: { time: Timestamp; }) => a.time - b.time).map((pt: { time: Timestamp; value: number; }) => [pt.time, pt.value]),
+      markArea:
+      {
+        itemStyle: {
+          color: 'rgba(0,1,0,1)'
+        },
+        data:
+          p.map((piece: { start: Timestamp; end: Timestamp; color: string; }) => {
+            return [
+              { xAxis: piece.start },
+              { xAxis: piece.end, itemStyle: { color: piece.color, } },
+            ];
+          }),
+      }
+
+    }
+  });
+
+  const output = {
     title: {
       text: props.title
     },
@@ -167,32 +206,7 @@ const option = computed(() => {
     yAxis: {
       type: 'value'
     },
-    series: serieses.value.map((s) => {
-      const displayMarks = (s === serieses.value[0]);
-      return {
-        name: s.name,
-        // lineStyle: {
-        //   color: '#ff0000',
-        //   // width: 5
-        // },
-        // areaStyle: {
-        //   color: 'rgba(0,0,0,0)'
-        // }, // needed!
-
-        type: 'line',
-        symbol: 'none',
-        sampling: 'lttb',
-        data: structuredClone(s.points).toSorted((a, b) => a.time - b.time).map((p) => [p.time, p.value]),
-        markArea: displayMarks ? {
-          data: props.pieces?.map((p) => {
-            return [
-              { xAxis: p.start },
-              { xAxis: p.end, itemStyle: { color: p.color } },
-            ]
-          }) || [],
-        } : {}
-      }
-    })
+    series: seriesEntries,
     // {
     //   name: 'Email',
     //   type: 'line',
@@ -200,7 +214,9 @@ const option = computed(() => {
     //   data: [120, 132, 101, 134, 90, 230, 210]
     // },
 
-  }
+  };
+  console.log(output);
+  return output;
 });
 
 </script>
