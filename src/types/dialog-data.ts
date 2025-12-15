@@ -28,7 +28,32 @@ export class DialogData {
       };
     });
   }
+
+  calculateSpeakerTimes() {
+    const speakers = new Map<string, number>();
+    let emptyTime = this.duration;
+    this.utterances.forEach((utterance) => {
+      const name = `Speaker ${utterance.speakerIdx}`;
+      speakers.set(name, (speakers.get(name) || 0) + utterance.endTime - utterance.startTime);
+      emptyTime -= utterance.endTime - utterance.startTime;
+    });
+
+    speakers.set('Silence', emptyTime);
+    return speakers;
+  }
+
+  calculatePerSpeakerMetricSequence() {
+    const perSpeaker = new Map<string, { valence: MetricValue; arousal: MetricValue }[]>();
+    this.utterances.forEach((utterance) => {
+      const name = `Speaker ${utterance.speakerIdx}`;
+      perSpeaker.set(name, perSpeaker.get(name) || []);
+      perSpeaker.get(name)?.push(utterance.metrics);
+    });
+    return perSpeaker;
+  }
 }
+
+export type MetricValue = number;
 
 export class DialogUtterance {
   constructor(
@@ -36,7 +61,8 @@ export class DialogUtterance {
     startTime: Timestamp,
     endTime: Timestamp,
     metrics: {
-      valence: TimeSeries;
+      valence: MetricValue;
+      arousal: MetricValue;
     },
     speakerIdx: number,
   ) {
@@ -50,7 +76,8 @@ export class DialogUtterance {
   startTime: Timestamp;
   endTime: Timestamp;
   metrics: {
-    valence: TimeSeries;
+    valence: MetricValue;
+    arousal: MetricValue;
   };
   speakerIdx: number;
 }
@@ -60,12 +87,12 @@ function randBetween(min: number, max: number) {
 }
 
 export function generate_fake_dialog(): DialogData {
-  const randomDuration = randBetween(60, 120);
+  const randomDuration = randBetween(240, 600);
 
   const utterances: DialogUtterance[] = [];
   let lastUtteranceEndTime = 0;
 
-  for (let i = 0; i < randBetween(2, 7); i++) {
+  for (let i = 0; i < randBetween(10, 30); i++) {
     const utteranceStartTime = lastUtteranceEndTime + randBetween(2, 10);
     const utteranceEndTime = utteranceStartTime + randBetween(5, 15);
     lastUtteranceEndTime = utteranceEndTime;
@@ -75,11 +102,8 @@ export function generate_fake_dialog(): DialogData {
       startTime: utteranceStartTime,
       endTime: utteranceEndTime,
       metrics: {
-        valence: generate_fake_time_series(
-          'valence for utterance' + i,
-          utteranceEndTime - utteranceStartTime,
-          utteranceStartTime,
-        ),
+        valence: randBetween(-100, 100) / 100,
+        arousal: randBetween(0, 100) / 100,
       },
       speakerIdx: i % 2,
     });
