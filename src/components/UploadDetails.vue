@@ -1,16 +1,17 @@
 <template>
-  <div>
-    <q-splitter v-model="splitterModel">
-      <template v-slot:before>
-        <div class="q-pa-md row" style="overflow-y: auto; height: 90vh; text-align: left !important;">
-          <QBtn style="width: 100%;" flat no-caps :align="'left'" v-for="segment in segmentDatas" :key="segment.data.id"
-            @click="onSegmentClicked(segment)">
-            <q-chat-message :text="[segment.data.text]" :sent="segment.channel === recordingData?.channels.at(0)"
-              :stamp="segment.data.start + ' - ' + segment.data.end"
-              :style="currentTime >= segment.data.start && currentTime <= segment.data.end ? 'outline: dotted red 4px' : ''" />
-          </QBtn>
-        </div>
-        <!-- <QList style="overflow-y: auto; height: 90vh">
+
+
+  <q-splitter v-model="splitterModel">
+    <template v-slot:before>
+      <div class="q-pa-md row" style="overflow-y: auto; height: 90vh; text-align: left !important;">
+        <QBtn style="width: 100%;" flat no-caps :align="'left'" v-for="segment in segmentDatas" :key="segment.data.id"
+          @click="onSegmentClicked(segment)">
+          <q-chat-message :text="[segment.data.text]" :sent="segment.channel === recordingData?.channels.at(0)"
+            :stamp="segment.data.start + ' - ' + segment.data.end"
+            :style="currentTime >= segment.data.start && currentTime <= segment.data.end ? 'outline: dotted red 4px' : ''" />
+        </QBtn>
+      </div>
+      <!-- <QList style="overflow-y: auto; height: 90vh">
           evil hack, but without overflow-y + height, scrolling cannot work
           <QItem v-for="segment in segmentDatas" :key="segment.data.id" clickable v-ripple
             @click="onSegmentClicked(segment)">
@@ -24,14 +25,17 @@
             </QItemSection>
           </QItem>
         </QList> -->
-      </template>
+    </template>
 
-      <template v-slot:after>
+    <template v-slot:after>
+      <q-linear-progress v-if="loading" indeterminate color="primary" class="q-ma-md" />
+      <div style="overflow-y: scroll; height: 90vh">
+
         <h3 class="text-negative" v-if="errorText">
           {{ errorText }}
         </h3>
 
-        <div class="q-pa-md">
+        <div class="q-pa-md q-gutter-md">
           <audio controls :src="audioUrl" ref="player" style="width: 100%" @timeupdate="onTimeUpdate">
             Your browser does not support the HTML5 audio element.
           </audio>
@@ -56,8 +60,26 @@
               <div v-else>
                 Unknown status: {{ recordingData?.analysis_status }}
               </div>
-              {{ recordingData?.analysis_status }}
-              {{ recordingData }}
+            </q-card-section>
+            <q-card-section>
+              <div class="q-pa-md row items-start q-gutter-sm">
+                <template v-for="collection in recordingData?.metrics" :key="collection.provider">
+                  <q-card v-for="metric in collection.metrics" :key="metric.name">
+                    <q-card-section>
+                      <div class="text-h6">
+                        {{ metric.name }}
+                      </div>
+                      <div class="text-subtitle2">
+                        {{ metric.description }}
+                      </div>
+                    </q-card-section>
+                    <q-card-section>
+                      {{ metric.value }} {{ metric.unit !== null ? metric.unit : '' }}
+                    </q-card-section>
+                  </q-card>
+                </template>
+              </div>
+
             </q-card-section>
             <q-card-section v-if="recordingData?.analysis_error_message">
               <div class="text-negative">
@@ -70,43 +92,71 @@
               <div class="text-h6">Loading recording data...</div>
             </q-card-section>
           </q-card>
-        </div>
 
-        <div v-if="channelDatas.length > 0" class="row">
-          <q-card v-for="channelData in channelDatas" :key="channelData.self_url">
+          <div v-if="channelDatas.length > 0" class="row q-gutter-sm">
+            <q-card v-for="channelData in channelDatas" :key="channelData.self_url">
+              <q-card-section>
+                <div class="text-h6 cursor-pointer">
+                  {{ channelData.assigned_name === null ? "Channel " + channelData.idx_in_file :
+                    channelData.assigned_name }}
+                  <q-popup-edit v-model="channelData.assigned_name" auto-save title="Set channel name" v-slot="scope"
+                    @save="updateAssignedName(channelData.self_url, channelData.assigned_name)">
+                    <q-input v-model="scope.value" autofocus @keyup.enter="scope.set" />
+                  </q-popup-edit>
+                </div>
+              </q-card-section>
+              <q-card-section class="row q-gutter-sm">
+                <template v-for="collection in channelData.metrics" :key="collection.provider">
+                  <q-card v-for="metric in collection.metrics" :key="metric.name">
+                    <q-card-section>
+                      <div class="text-h6">
+                        {{ metric.name }}
+                      </div>
+                      <div class="text-subtitle2">
+                        {{ metric.description }}
+                      </div>
+                    </q-card-section>
+                    <q-card-section>
+                      {{ metric.value }} {{ metric.unit !== null ? metric.unit : '' }}
+                    </q-card-section>
+                  </q-card>
+                </template>
+              </q-card-section>
+            </q-card>
+          </div>
+
+          <q-card v-if="activeSegment !== null">
             <q-card-section>
-              <div class="text-h6">Channel: {{ channelData.idx_in_file }}</div>
-              <ul>
-                <li>Age: {{ channelData.wav2vec2_age_gender.age }}</li>
-                <li>Gender: {{ channelData.wav2vec2_age_gender.male * 100 }}% male, {{
-                  channelData.wav2vec2_age_gender.female * 100 }}% female, {{ channelData.wav2vec2_age_gender.child *
-                    100 }}% child</li>
-              </ul>
+              <div class="text-h6">Active segment: {{ activeSegment.data.start }} &mdash; {{ activeSegment.data.end }}
+              </div>
+            </q-card-section>
+            <q-card-section class="force-chat-on-one-side">
+              <q-chat-message :text="[activeSegment.data.text]"
+                :sent="activeSegment.channel === recordingData?.channels.at(0)" />
+            </q-card-section>
+            <q-card-section class="row q-gutter-sm">
+              <template v-for="collection in activeSegment?.data.metrics" :key="collection.provider">
+                <q-card v-for="metric in collection.metrics" :key="metric.name">
+                  <q-card-section>
+                    <div class="text-h6">
+                      {{ metric.name }}
+                    </div>
+                    <div class="text-subtitle2">
+                      {{ metric.description }}
+                    </div>
+                  </q-card-section>
+                  <q-card-section>
+                    {{ metric.value }} {{ metric.unit !== null ? metric.unit : '' }}
+                  </q-card-section>
+                </q-card>
+              </template>
             </q-card-section>
           </q-card>
         </div>
+      </div>
+    </template>
 
-        <q-card v-if="activeSegment !== null">
-          <q-card-section>
-            <div class="text-h6">Active segment: {{ activeSegment.data.start }} &mdash; {{ activeSegment.data.end }}
-            </div>
-          </q-card-section>
-          <q-card-section class="force-chat-on-one-side">
-            <q-chat-message :text="[activeSegment.data.text]"
-              :sent="activeSegment.channel === recordingData?.channels.at(0)" />
-          </q-card-section>
-          <q-card-section class="q-pt-none">
-            <ul>
-              <li>Valence: {{ activeSegment.data.stats.wav2vec2_emotion.valence }}</li>
-              <li>Arousal: {{ activeSegment.data.stats.wav2vec2_emotion.arousal }}</li>
-              <li>Dominance: {{ activeSegment.data.stats.wav2vec2_emotion.dominance }}</li>
-            </ul>
-          </q-card-section>
-        </q-card>
-      </template>
-
-    </q-splitter>
-  </div>
+  </q-splitter>
 </template>
 
 <script setup lang="ts">
@@ -127,6 +177,7 @@ interface RecordingData {
   uploaded_at: string,
   download_url: string,
   channels: string[],
+  metrics: MetricCollection[] | null,
   analysis_status: string,
   analysis_percent_done: number,
   analysis_error_message: string | null,
@@ -138,7 +189,7 @@ interface SegmentData {
   start: number,
   end: number,
   text: string,
-  stats: SegmentStats,
+  metrics: MetricCollection[],
 }
 
 interface SegmentItem {
@@ -146,13 +197,18 @@ interface SegmentItem {
   data: SegmentData,
 }
 
-interface SegmentStats {
-  whisper: unknown,
-  wav2vec2_emotion: {
-    arousal: number,
-    valence: number,
-    dominance: number,
-  }
+interface MetricCollection {
+  provider: string,
+  metrics: Metric[],
+  description: string | null,
+}
+
+interface Metric {
+  type: string,
+  name: string,
+  value: number | string | boolean,
+  description: string | null,
+  unit: string | null
 }
 
 const recordingData: Ref<RecordingData | null> = ref(null)
@@ -254,7 +310,7 @@ const fetchData = async (reset = true) => {
   if (recordingData.value?.analysis_status !== 'done' && recordingData.value?.analysis_status !== 'error') {
     if (route.params.id === recordingData.value?.id) {
       // eslint-disable-next-line @typescript-eslint/no-misused-promises
-      setTimeout(async () => await fetchData(false), 1000)
+      setTimeout(async () => await fetchData(true), 1000)
     }
   }
 }
@@ -291,17 +347,33 @@ const fetchSegments = async (channelData: ChannelData) => {
   }
 }
 
+const updateAssignedName = async (self_url: string, new_name: string | null) => {
+  console.log("update assigned name", self_url, new_name)
+  try {
+    const response = await fetch(self_url + "/assigned_name", {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(new_name),
+    })
+    if (response.ok) {
+      console.log('Assigned name updated successfully')
+    } else {
+      throw new Error('Failed to update assigned name')
+    }
+  } catch (error) {
+    console.error('Error updating assigned name:', error)
+    alert('Failed to update assigned name')
+  }
+}
+
 interface ChannelData {
   self_url: string,
   idx_in_file: number,
   assigned_name: string | null,
-  wav2vec2_age_gender: {
-    age: number,
-    female: number,
-    male: number,
-    child: number
-  },
-  segments_begin_url: string
+  segments_begin_url: string,
+  metrics: MetricCollection[],
 }
 
 const fetchChannelData = async (url: string): Promise<ChannelData> => {
