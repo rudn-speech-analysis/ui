@@ -7,7 +7,7 @@
         <QBtn style="width: 100%;" flat no-caps :align="'left'" v-for="segment in segmentDatas" :key="segment.data.id"
           @click="onSegmentClicked(segment)">
           <q-chat-message :text="[segment.data.text]" :sent="segment.channel === recordingData?.channels.at(0)"
-            :stamp="segment.data.start + ' - ' + segment.data.end"
+            :stamp="segment.data.start + ' - ' + segment.data.end + ', ' + getChannelName(segment.channel)"
             :style="currentTime >= segment.data.start && currentTime <= segment.data.end ? 'outline: dotted red 4px' : ''" />
         </QBtn>
       </div>
@@ -40,6 +40,85 @@
             Your browser does not support the HTML5 audio element.
           </audio>
 
+          <q-tabs v-model="tab" dense class="text-grey" active-color="primary" indicator-color="primary" align="justify"
+            narrow-indicator>
+            <q-tab name="audio" label="Audio" />
+            <q-tab name="channels" label="Channels" />
+            <q-tab name="segment" label="Segment" />
+          </q-tabs>
+
+          <q-separator />
+
+          <q-tab-panels v-model="tab" animated>
+            <q-tab-panel name="audio">
+              <div class="text-h6">Audio metrics</div>
+              <div class="q-pa-md row items-start q-gutter-sm">
+                <template v-for="collection in recordingData?.metrics" :key="collection.provider">
+                  <q-card v-for="metric in collection.metrics" :key="metric.name">
+                    <q-card-section>
+                      <div class="text-h6">
+                        {{ metric.name }}
+                        <template v-if="metric.description">
+                          <q-icon name="info" size="xs" right />
+                          <q-tooltip>
+                            {{ metric.description }}
+                          </q-tooltip>
+                        </template>
+                      </div>
+                    </q-card-section>
+                    <q-card-section>
+                      {{ metric.value }} {{ metric.unit !== null ? metric.unit : '' }}
+                    </q-card-section>
+                  </q-card>
+                </template>
+              </div>
+              <div>
+                <SpeakerProportionWidget :channelDatas="channelDatas" />
+              </div>
+            </q-tab-panel>
+
+            <q-tab-panel name="channels">
+              <ChannelDetails :channelDatas="channelDatas" :channelSegments="segmentDatas" :cursor="currentTime"
+                @change-time="setTime" />
+            </q-tab-panel>
+            <q-tab-panel name="segment">
+              <div class="text-h6">Segment metrics</div>
+              <q-card v-if="activeSegment !== null">
+                <q-card-section>
+                  <div class="text-h6">Active segment: {{ activeSegment.data.start }} &mdash; {{ activeSegment.data.end
+                    }}
+                  </div>
+                </q-card-section>
+                <q-card-section class="force-chat-on-one-side">
+                  <q-chat-message :text="[activeSegment.data.text]"
+                    :sent="activeSegment.channel === recordingData?.channels.at(0)" />
+                </q-card-section>
+                <q-card-section class="row q-gutter-sm">
+                  <template v-for="collection in activeSegment?.data.metrics" :key="collection.provider">
+                    <q-card v-for="metric in collection.metrics" :key="metric.name">
+                      <q-card-section>
+                        <div class="text-h6">
+                          {{ metric.name }}
+                        </div>
+                        <div class="text-subtitle2">
+                          {{ metric.description }}
+                        </div>
+                      </q-card-section>
+                      <q-card-section>
+                        {{ metric.value }} {{ metric.unit !== null ? metric.unit : '' }}
+                      </q-card-section>
+                    </q-card>
+                  </template>
+                </q-card-section>
+              </q-card>
+              <div v-else>
+                <p>No segment is currently selected</p>
+              </div>
+
+            </q-tab-panel>
+          </q-tab-panels>
+
+
           <q-card v-if="!loading">
             <q-card-section>
               <div class="text-h6">Analysis status</div>
@@ -61,26 +140,6 @@
                 Unknown status: {{ recordingData?.analysis_status }}
               </div>
             </q-card-section>
-            <q-card-section>
-              <div class="q-pa-md row items-start q-gutter-sm">
-                <template v-for="collection in recordingData?.metrics" :key="collection.provider">
-                  <q-card v-for="metric in collection.metrics" :key="metric.name">
-                    <q-card-section>
-                      <div class="text-h6">
-                        {{ metric.name }}
-                      </div>
-                      <div class="text-subtitle2">
-                        {{ metric.description }}
-                      </div>
-                    </q-card-section>
-                    <q-card-section>
-                      {{ metric.value }} {{ metric.unit !== null ? metric.unit : '' }}
-                    </q-card-section>
-                  </q-card>
-                </template>
-              </div>
-
-            </q-card-section>
             <q-card-section v-if="recordingData?.analysis_error_message">
               <div class="text-negative">
                 {{ recordingData?.analysis_error_message }}
@@ -93,65 +152,6 @@
             </q-card-section>
           </q-card>
 
-          <div v-if="channelDatas.length > 0" class="row q-gutter-sm">
-            <q-card v-for="channelData in channelDatas" :key="channelData.self_url">
-              <q-card-section>
-                <div class="text-h6 cursor-pointer">
-                  {{ channelData.assigned_name === null ? "Channel " + channelData.idx_in_file :
-                    channelData.assigned_name }}
-                  <q-popup-edit v-model="channelData.assigned_name" auto-save title="Set channel name" v-slot="scope"
-                    @save="updateAssignedName(channelData.self_url, channelData.assigned_name)">
-                    <q-input v-model="scope.value" autofocus @keyup.enter="scope.set" />
-                  </q-popup-edit>
-                </div>
-              </q-card-section>
-              <q-card-section class="row q-gutter-sm">
-                <template v-for="collection in channelData.metrics" :key="collection.provider">
-                  <q-card v-for="metric in collection.metrics" :key="metric.name">
-                    <q-card-section>
-                      <div class="text-h6">
-                        {{ metric.name }}
-                      </div>
-                      <div class="text-subtitle2">
-                        {{ metric.description }}
-                      </div>
-                    </q-card-section>
-                    <q-card-section>
-                      {{ metric.value }} {{ metric.unit !== null ? metric.unit : '' }}
-                    </q-card-section>
-                  </q-card>
-                </template>
-              </q-card-section>
-            </q-card>
-          </div>
-
-          <q-card v-if="activeSegment !== null">
-            <q-card-section>
-              <div class="text-h6">Active segment: {{ activeSegment.data.start }} &mdash; {{ activeSegment.data.end }}
-              </div>
-            </q-card-section>
-            <q-card-section class="force-chat-on-one-side">
-              <q-chat-message :text="[activeSegment.data.text]"
-                :sent="activeSegment.channel === recordingData?.channels.at(0)" />
-            </q-card-section>
-            <q-card-section class="row q-gutter-sm">
-              <template v-for="collection in activeSegment?.data.metrics" :key="collection.provider">
-                <q-card v-for="metric in collection.metrics" :key="metric.name">
-                  <q-card-section>
-                    <div class="text-h6">
-                      {{ metric.name }}
-                    </div>
-                    <div class="text-subtitle2">
-                      {{ metric.description }}
-                    </div>
-                  </q-card-section>
-                  <q-card-section>
-                    {{ metric.value }} {{ metric.unit !== null ? metric.unit : '' }}
-                  </q-card-section>
-                </q-card>
-              </template>
-            </q-card-section>
-          </q-card>
         </div>
       </div>
     </template>
@@ -161,9 +161,11 @@
 
 <script setup lang="ts">
 import { QBtn } from 'quasar'
-
+import { ChannelData, MetricCollection, SegmentData, ChannelSegmentData as ChannelSegment } from 'src/types/api-types'
 import { ref, onMounted, watch, Ref, useTemplateRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import SpeakerProportionWidget from './SpeakerProportionWidget.vue'
+import ChannelDetails from './ChannelDetails.vue'
 
 const props = defineProps({
   uuid: {
@@ -184,36 +186,9 @@ interface RecordingData {
   analysis_updated_at: Date,
 }
 
-interface SegmentData {
-  id: string,
-  start: number,
-  end: number,
-  text: string,
-  metrics: MetricCollection[],
-}
-
-interface SegmentItem {
-  channel: string,
-  data: SegmentData,
-}
-
-interface MetricCollection {
-  provider: string,
-  metrics: Metric[],
-  description: string | null,
-}
-
-interface Metric {
-  type: string,
-  name: string,
-  value: number | string | boolean,
-  description: string | null,
-  unit: string | null
-}
-
 const recordingData: Ref<RecordingData | null> = ref(null)
 const channelDatas: Ref<ChannelData[]> = ref([])
-const segmentDatas = ref<SegmentItem[]>([])
+const segmentDatas = ref<ChannelSegment[]>([])
 
 const loading = ref(true)
 const errorText: Ref<string | null> = ref(null)
@@ -224,17 +199,28 @@ const currentTime = ref(0)
 const audioElementRef = useTemplateRef('player')
 const audioUrl = ref('')
 
+const tab = ref('audio')
+
 const route = useRoute()
 const router = useRouter()
 
-const onSegmentClicked = (segment: SegmentItem) => {
+const onSegmentClicked = (segment: ChannelSegment) => {
   const audioElement = audioElementRef.value
   if (audioElement) {
     audioElement.currentTime = segment.data.start
   }
 };
 
-const activeSegment = ref<SegmentItem | null>(null)
+const setTime = (time: number) => {
+  console.log("set time", time)
+  const audioElement = audioElementRef.value
+  if (audioElement) {
+    audioElement.currentTime = time
+    currentTime.value = time
+  }
+};
+
+const activeSegment = ref<ChannelSegment | null>(null)
 
 const onTimeUpdate = async () => {
   const audioElement = audioElementRef.value
@@ -347,33 +333,12 @@ const fetchSegments = async (channelData: ChannelData) => {
   }
 }
 
-const updateAssignedName = async (self_url: string, new_name: string | null) => {
-  console.log("update assigned name", self_url, new_name)
-  try {
-    const response = await fetch(self_url + "/assigned_name", {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(new_name),
-    })
-    if (response.ok) {
-      console.log('Assigned name updated successfully')
-    } else {
-      throw new Error('Failed to update assigned name')
-    }
-  } catch (error) {
-    console.error('Error updating assigned name:', error)
-    alert('Failed to update assigned name')
+const getChannelName = (self_url: string) => {
+  const channelData = channelDatas.value.find(c => c.self_url === self_url)
+  if (channelData) {
+    return channelData.assigned_name || 'unnamed'
   }
-}
-
-interface ChannelData {
-  self_url: string,
-  idx_in_file: number,
-  assigned_name: string | null,
-  segments_begin_url: string,
-  metrics: MetricCollection[],
+  return 'unnamed'
 }
 
 const fetchChannelData = async (url: string): Promise<ChannelData> => {
@@ -402,5 +367,20 @@ watch(() => props.uuid, () => fetchData())
 <style lang="css">
 .force-chat-on-one-side .q-message-sent .q-message-container.row.reverse {
   flex-direction: row !important;
+}
+
+.custom-space-between * {
+  margin-right: 8px;
+  margin-left: 8px;
+}
+
+.custom-space-between *:first-child {
+  margin-right: 8px;
+  margin-left: 0px;
+}
+
+.custom-space-between *:last-child {
+  margin-right: 0px;
+  margin-left: 8px;
 }
 </style>

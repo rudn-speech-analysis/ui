@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts">
-import { connect, use } from "echarts/core";
+import { use } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { PieChart } from "echarts/charts";
 import {
@@ -16,8 +16,8 @@ import {
   VisualMapComponent,
   MarkAreaComponent,
 } from "echarts/components";
-import VChart, { THEME_KEY } from "vue-echarts";
-import { provide, computed, onMounted } from "vue";
+import VChart from "vue-echarts";
+import { computed } from "vue";
 import { UniversalTransition } from "echarts/features";
 
 interface Props {
@@ -27,9 +27,9 @@ interface Props {
 
 const props = defineProps<Props>();
 
-onMounted(() => {
-  connect('all-charts');
-});
+// onMounted(() => {
+//   connect('all-charts');
+// });
 
 use([
   TitleComponent,
@@ -45,7 +45,7 @@ use([
   PieChart,
 ]);
 
-provide(THEME_KEY, "dark");
+// provide(THEME_KEY, "dark");
 
 const option = computed(() => {
   const nameValuePairs: { name: string; value: number; }[] = [];
