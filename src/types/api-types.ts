@@ -1,3 +1,7 @@
+export function api(route: string): string {
+  return `http://172.26.5.50:3000${route}`;
+}
+
 export interface ChannelData {
   self_url: string;
   idx_in_file: number;

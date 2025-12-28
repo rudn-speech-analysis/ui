@@ -7,7 +7,7 @@
         <QBtn style="width: 100%;" flat no-caps :align="'left'" v-for="segment in segmentDatas" :key="segment.data.id"
           @click="onSegmentClicked(segment)">
           <q-chat-message :text="[segment.data.text]" :sent="segment.channel === recordingData?.channels.at(0)"
-            :stamp="segment.data.start + ' - ' + segment.data.end + ', ' + getChannelName(segment.channel)"
+            :stamp="segment.data.start + ' - ' + segment.data.end + ', ' + getChannelName(segment)"
             :style="currentTime >= segment.data.start && currentTime <= segment.data.end ? 'outline: dotted red 4px' : ''" />
         </QBtn>
       </div>
@@ -28,7 +28,36 @@
     </template>
 
     <template v-slot:after>
-      <q-linear-progress v-if="loading" indeterminate color="primary" class="q-ma-md" />
+      <q-linear-progress v-if="loading || recordingData?.analysis_status !== 'done'" indeterminate color="primary"
+        class="q-ma-md" />
+      <q-card>
+        <q-card-section>
+          <div class="text-h6">Analysis status</div>
+        </q-card-section>
+        <q-card-section>
+          <div v-if="recordingData?.analysis_status === 'pending'">
+            <q-spinner color="primary" size="3em" />
+            Waiting for worker to start...
+          </div>
+          <div v-else-if="recordingData?.analysis_status === 'running'">
+            <q-spinner color="primary" size="3em" />
+            Analyzing ({{ recordingData?.analysis_percent_done }}% complete)...
+          </div>
+          <div v-else-if="recordingData?.analysis_status === 'done'">
+            <q-icon name="done" color="positive" size="3em" />
+            Analysis complete
+          </div>
+          <div v-else>
+            Unknown status: {{ recordingData?.analysis_status }}
+          </div>
+        </q-card-section>
+        <q-card-section v-if="recordingData?.analysis_error_message">
+          <div class="text-negative">
+            {{ recordingData?.analysis_error_message }}
+          </div>
+        </q-card-section>
+      </q-card>
+
       <div style="overflow-y: scroll; height: 90vh">
 
         <h3 class="text-negative" v-if="errorText">
@@ -40,68 +69,31 @@
             Your browser does not support the HTML5 audio element.
           </audio>
 
-          <q-tabs v-model="tab" dense class="text-grey" active-color="primary" indicator-color="primary" align="justify"
-            narrow-indicator>
-            <q-tab name="audio" label="Audio" />
-            <q-tab name="channels" label="Channels" />
-            <q-tab name="segment" label="Segment" />
-          </q-tabs>
+          <div v-if="!loading && recordingData?.analysis_status === 'done'">
+            <q-tabs v-model="tab" dense class="text-grey" active-color="primary" indicator-color="primary"
+              align="justify" narrow-indicator>
+              <q-tab name="audio" label="Audio" />
+              <q-tab name="channels" label="Channels" />
+              <q-tab name="segment" label="Segment" />
+            </q-tabs>
 
-          <q-separator />
+            <q-separator />
 
-          <q-tab-panels v-model="tab" animated>
-            <q-tab-panel name="audio">
-              <div class="text-h6">Audio metrics</div>
-              <div class="q-pa-md row items-start q-gutter-sm">
-                <template v-for="collection in recordingData?.metrics" :key="collection.provider">
-                  <q-card v-for="metric in collection.metrics" :key="metric.name">
-                    <q-card-section>
-                      <div class="text-h6">
-                        {{ metric.name }}
-                        <template v-if="metric.description">
-                          <q-icon name="info" size="xs" right />
-                          <q-tooltip>
-                            {{ metric.description }}
-                          </q-tooltip>
-                        </template>
-                      </div>
-                    </q-card-section>
-                    <q-card-section>
-                      {{ metric.value }} {{ metric.unit !== null ? metric.unit : '' }}
-                    </q-card-section>
-                  </q-card>
-                </template>
-              </div>
-              <div>
-                <SpeakerProportionWidget :channelDatas="channelDatas" />
-              </div>
-            </q-tab-panel>
-
-            <q-tab-panel name="channels">
-              <ChannelDetails :channelDatas="channelDatas" :channelSegments="segmentDatas" :cursor="currentTime"
-                @change-time="setTime" />
-            </q-tab-panel>
-            <q-tab-panel name="segment">
-              <div class="text-h6">Segment metrics</div>
-              <q-card v-if="activeSegment !== null">
-                <q-card-section>
-                  <div class="text-h6">Active segment: {{ activeSegment.data.start }} &mdash; {{ activeSegment.data.end
-                    }}
-                  </div>
-                </q-card-section>
-                <q-card-section class="force-chat-on-one-side">
-                  <q-chat-message :text="[activeSegment.data.text]"
-                    :sent="activeSegment.channel === recordingData?.channels.at(0)" />
-                </q-card-section>
-                <q-card-section class="row q-gutter-sm">
-                  <template v-for="collection in activeSegment?.data.metrics" :key="collection.provider">
+            <q-tab-panels v-model="tab" animated>
+              <q-tab-panel name="audio">
+                <div class="text-h6">Audio metrics</div>
+                <div class="q-pa-md row items-start q-gutter-sm">
+                  <template v-for="collection in recordingData?.metrics" :key="collection.provider">
                     <q-card v-for="metric in collection.metrics" :key="metric.name">
                       <q-card-section>
                         <div class="text-h6">
                           {{ metric.name }}
-                        </div>
-                        <div class="text-subtitle2">
-                          {{ metric.description }}
+                          <template v-if="metric.description">
+                            <q-icon name="info" size="xs" right />
+                            <q-tooltip>
+                              {{ metric.description }}
+                            </q-tooltip>
+                          </template>
                         </div>
                       </q-card-section>
                       <q-card-section>
@@ -109,48 +101,54 @@
                       </q-card-section>
                     </q-card>
                   </template>
-                </q-card-section>
-              </q-card>
-              <div v-else>
-                <p>No segment is currently selected</p>
-              </div>
+                </div>
+                <div>
+                  <SpeakerProportionWidget :channelDatas="channelDatas" />
+                </div>
+              </q-tab-panel>
 
-            </q-tab-panel>
-          </q-tab-panels>
+              <q-tab-panel name="channels">
+                <ChannelDetails :channelDatas="channelDatas" :channelSegments="segmentDatas" :cursor="currentTime"
+                  @change-time="setTime" />
+              </q-tab-panel>
+              <q-tab-panel name="segment">
+                <div class="text-h6">Segment metrics</div>
+                <q-card v-if="activeSegment !== null">
+                  <q-card-section>
+                    <div class="text-h6">Active segment: {{ activeSegment.data.start }} &mdash; {{
+                      activeSegment.data.end
+                    }}
+                    </div>
+                  </q-card-section>
+                  <q-card-section class="force-chat-on-one-side">
+                    <q-chat-message :text="[activeSegment.data.text]"
+                      :sent="activeSegment.channel === recordingData?.channels.at(0)" />
+                  </q-card-section>
+                  <q-card-section class="row q-gutter-sm">
+                    <template v-for="collection in activeSegment?.data.metrics" :key="collection.provider">
+                      <q-card v-for="metric in collection.metrics" :key="metric.name">
+                        <q-card-section>
+                          <div class="text-h6">
+                            {{ metric.name }}
+                          </div>
+                          <div class="text-subtitle2">
+                            {{ metric.description }}
+                          </div>
+                        </q-card-section>
+                        <q-card-section>
+                          {{ metric.value }} {{ metric.unit !== null ? metric.unit : '' }}
+                        </q-card-section>
+                      </q-card>
+                    </template>
+                  </q-card-section>
+                </q-card>
+                <div v-else>
+                  <p>No segment is currently selected</p>
+                </div>
 
-
-          <q-card v-if="!loading">
-            <q-card-section>
-              <div class="text-h6">Analysis status</div>
-            </q-card-section>
-            <q-card-section>
-              <div v-if="recordingData?.analysis_status === 'pending'">
-                <q-spinner color="primary" size="3em" />
-                Waiting for worker to start...
-              </div>
-              <div v-else-if="recordingData?.analysis_status === 'running'">
-                <q-spinner color="primary" size="3em" />
-                Analyzing ({{ recordingData?.analysis_percent_done }}% complete)...
-              </div>
-              <div v-else-if="recordingData?.analysis_status === 'done'">
-                <q-icon name="done" color="positive" size="3em" />
-                Analysis complete
-              </div>
-              <div v-else>
-                Unknown status: {{ recordingData?.analysis_status }}
-              </div>
-            </q-card-section>
-            <q-card-section v-if="recordingData?.analysis_error_message">
-              <div class="text-negative">
-                {{ recordingData?.analysis_error_message }}
-              </div>
-            </q-card-section>
-          </q-card>
-          <q-card v-else>
-            <q-card-section>
-              <div class="text-h6">Loading recording data...</div>
-            </q-card-section>
-          </q-card>
+              </q-tab-panel>
+            </q-tab-panels>
+          </div>
 
         </div>
       </div>
@@ -161,7 +159,7 @@
 
 <script setup lang="ts">
 import { QBtn } from 'quasar'
-import { ChannelData, MetricCollection, SegmentData, ChannelSegmentData as ChannelSegment } from 'src/types/api-types'
+import { ChannelData, MetricCollection, SegmentData, ChannelSegmentData as ChannelSegment, api } from 'src/types/api-types'
 import { ref, onMounted, watch, Ref, useTemplateRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SpeakerProportionWidget from './SpeakerProportionWidget.vue'
@@ -241,14 +239,14 @@ const onTimeUpdate = async () => {
 const fetchData = async (reset = true) => {
   if (reset) {
     loading.value = true
-    recordingData.value = null
+    // recordingData.value = null
     errorText.value = null
     channelDatas.value = []
     segmentDatas.value = []
     audioUrl.value = ''
   }
   try {
-    const response = await fetch(`http://localhost:3000/recordings/${props.uuid}`)
+    const response = await fetch(api(`/recordings/${props.uuid}`))
     if (response.ok) {
       recordingData.value = await response.json()
       if (!audioUrl.value) {
@@ -333,12 +331,12 @@ const fetchSegments = async (channelData: ChannelData) => {
   }
 }
 
-const getChannelName = (self_url: string) => {
-  const channelData = channelDatas.value.find(c => c.self_url === self_url)
+const getChannelName = (segment: ChannelSegment) => {
+  const channelData = channelDatas.value.find(c => c.self_url === segment.channel)
   if (channelData) {
-    return channelData.assigned_name || 'unnamed'
+    return channelData.assigned_name || `Channel ${channelData.idx_in_file}`
   }
-  return 'unnamed'
+  return 'unknown'
 }
 
 const fetchChannelData = async (url: string): Promise<ChannelData> => {

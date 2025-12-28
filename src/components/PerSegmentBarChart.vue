@@ -121,7 +121,21 @@ const option = computed(() => {
     series: series,
     legend: {
       data: legend
-    }
+    },
+    dataZoom: [
+      {
+        type: 'inside',
+        start: 0,
+        end: 100,
+        filterMode: 'none'
+      },
+      {
+        type: 'slider',
+        start: 0,
+        end: 100,
+        filterMode: 'none'
+      }
+    ]
   };
   return opt;
 });

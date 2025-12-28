@@ -40,6 +40,7 @@ import NewUploadComponent from 'src/components/NewUploadComponent.vue'
 import UploadDetails from 'src/components/UploadDetails.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
+import { api } from 'src/types/api-types'
 
 const leftDrawerOpen = ref(true)
 const uploads: Ref<{ id: string }[]> = ref([])
@@ -77,7 +78,7 @@ const updateSelectedFromRoute = async () => {
 
 const refreshUploadList = async () => {
   try {
-    const response = await fetch('http://localhost:3000/recordings')
+    const response = await fetch(api('/recordings'))
     if (response.ok) {
       const data: { id: string }[] = await response.json()
       console.log(data)
@@ -119,7 +120,7 @@ const preDelete = (id: string, reset: { reset: () => void }) => {
     // eslint-disable-next-line @typescript-eslint/no-misused-promises
     onDismiss: async () => {
       if (doDelete) {
-        const response = await fetch(`http://localhost:3000/recordings/${id}`, {
+        const response = await fetch(api(`/recordings/${id}`), {
           method: 'DELETE',
         })
         if (response.ok) {

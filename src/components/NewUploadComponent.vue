@@ -2,8 +2,8 @@
   <q-page class="window-height row justify-center items-center">
     <div class="column items-center">
       <h4>Choose a file to analyze</h4>
-      <q-uploader url="http://localhost:3000/upload" label="Select a file to upload" accept="audio/*" auto-upload
-        @uploaded="onUploaded" @failed="onFailed" />
+      <q-uploader url="/api/upload" label="Select a file to upload" accept="audio/*" auto-upload @uploaded="onUploaded"
+        @failed="onFailed" />
     </div>
   </q-page>
 </template>
