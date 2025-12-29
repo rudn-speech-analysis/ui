@@ -5,7 +5,8 @@
       <q-form @submit="handleSubmit" class="q-pa-md">
         <q-file v-model="audio" label="Audio" filled required class="q-mb-md" accept="audio/*" />
         <q-file v-model="transcript" label="Transcript (optional)" filled class="q-mb-md" accept=".txt" />
-        <q-toggle v-model="diarize" label="Force diarization" class="q-mb-md" />
+        <q-toggle toggle-indeterminate keep-color color="primary" v-model="diarize"
+          :label="diarize === null ? 'Auto diarize' : (diarize ? 'Force diarize' : 'Force channels')" class="q-mb-md" />
         <br />
         <q-btn label="Upload" type="submit" color="primary" />
       </q-form>
@@ -19,7 +20,7 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const audio = ref<File | null>(null)
 const transcript = ref<File | null>(null)
-const diarize = ref(false)
+const diarize = ref<boolean | null>(null)
 
 const handleSubmit = () => {
   const formData = new FormData()
@@ -29,7 +30,13 @@ const handleSubmit = () => {
   if (transcript.value) {
     formData.append('transcript', transcript.value)
   }
-  formData.append('diarize', diarize.value ? 'on' : '')
+  if (diarize.value === true) {
+    formData.append('diarize', 'true')
+  } else if (diarize.value === false) {
+    formData.append('diarize', 'false')
+  } else {
+    formData.append('diarize', 'auto')
+  }
 
   const xhr = new XMLHttpRequest()
   xhr.open('POST', '/api/upload')
