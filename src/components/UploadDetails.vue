@@ -42,6 +42,13 @@
           <div v-else-if="recordingData?.analysis_status === 'running'">
             <q-spinner color="primary" size="3em" />
             Analyzing ({{ recordingData?.analysis_percent_done }}% complete)...
+            <span class="text-secondary">
+              Channel: {{ recordingData?.analysis_channel || 'unknown' }}.
+            </span>
+            <span class="text-secondary">
+              {{ recordingData?.analysis_description }}.
+            </span>
+
           </div>
           <div v-else-if="recordingData?.analysis_status === 'done'">
             <q-icon name="done" color="positive" size="3em" />
@@ -117,7 +124,7 @@
                   <q-card-section>
                     <div class="text-h6">Active segment: {{ activeSegment.data.start }} &mdash; {{
                       activeSegment.data.end
-                    }}
+                      }}
                     </div>
                   </q-card-section>
                   <q-card-section class="force-chat-on-one-side">
@@ -182,6 +189,8 @@ interface RecordingData {
   analysis_percent_done: number,
   analysis_error_message: string | null,
   analysis_updated_at: Date,
+  analysis_channel: number | null,
+  analysis_description: string | null,
 }
 
 const recordingData: Ref<RecordingData | null> = ref(null)
