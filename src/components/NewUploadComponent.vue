@@ -3,8 +3,8 @@
     <div class="column items-center">
       <h4>Choose a file to analyze</h4>
       <q-form @submit="handleSubmit" class="q-pa-md">
-        <q-file v-model="audio" label="Audio" filled required class="q-mb-md" />
-        <q-file v-model="transcript" label="Transcript (optional)" filled class="q-mb-md" />
+        <q-file v-model="audio" label="Audio" filled required class="q-mb-md" accept="audio/*" />
+        <q-file v-model="transcript" label="Transcript (optional)" filled class="q-mb-md" accept=".txt" />
         <q-toggle v-model="diarize" label="Force diarization" class="q-mb-md" />
         <br />
         <q-btn label="Upload" type="submit" color="primary" />
